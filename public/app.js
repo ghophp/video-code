@@ -126,6 +126,95 @@ function tokenizeCode(code, language) {
   return chars;
 }
 
+// ---------- Terminal Tokenizer ----------
+
+const TERM = {
+  default: "#cccccc",
+  prefix: "#56b6c2",
+  dim: "#5c6370",
+  keyword: "#e5c07b",
+  error: "#e06c75",
+  success: "#98c379",
+  url: "#61afef",
+  method: "#c678dd",
+  string: "#98c379",
+  number: "#d19a66",
+};
+
+const TERM_RULES = [
+  [/^\S+-\d+\s+\|/, TERM.prefix],
+  [/✔[^\n]*/, TERM.success],
+  [/\[\+\][^\n]*/, TERM.success],
+  [/={3,}[^=\n]*={3,}/, TERM.dim],
+  [/\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(\s*UTC)?/, TERM.dim],
+  [/\[\d+\]/, TERM.dim],
+  [/\bLOG:/, TERM.keyword],
+  [/\bERROR:?\b/, TERM.error],
+  [/\bWARN(ING)?:?\b/, TERM.keyword],
+  [/--?>/, TERM.method],
+  [/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/, TERM.method],
+  [/\b[2]\d{2}\b(?=\s)/, TERM.success],
+  [/\b[45]\d{2}\b(?=\s)/, TERM.error],
+  [/https?:\/\/\S+/, TERM.url],
+  [/\/[a-z][\w\-\.\/]*/, TERM.url],
+  [/"[^"]*"/, TERM.string],
+  [/\b\d+(\.\d+)?(s|ms|kB|MB|GB|%)\b/, TERM.number],
+  [/\b\d+(\.\d+)?\b/, TERM.number],
+  [/\b(Created|Started|Running|Attaching|Skipping)\b/, TERM.keyword],
+  [/\b(starting|listening|ready|complete|checkpoint)\b/, TERM.keyword],
+];
+
+function cleanTerminalText(text) {
+  // Strip ANSI escape sequences (colors, cursor, OSC, etc.)
+  text = text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
+  text = text.replace(/\x1b\][^\x07]*\x07/g, "");
+  text = text.replace(/\x1b[^[\]]/g, "");
+  // Strip other control chars except \n and \t
+  text = text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
+  // Normalize line endings, strip standalone \r
+  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "");
+  return text;
+}
+
+function tokenizeTerminal(text) {
+  text = cleanTerminalText(text);
+  const chars = [];
+  const lines = text.split("\n");
+
+  for (let li = 0; li < lines.length; li++) {
+    if (li > 0) chars.push({ char: "\n", color: TERM.default });
+    // Expand tabs to spaces (8-column tab stops) and trim trailing whitespace
+    let line = "";
+    for (const ch of lines[li]) {
+      if (ch === "\t") {
+        const spaces = 8 - (line.length % 8);
+        line += " ".repeat(spaces);
+      } else {
+        line += ch;
+      }
+    }
+    line = line.trimEnd();
+    let pos = 0;
+    while (pos < line.length) {
+      let found = false;
+      for (const [re, color] of TERM_RULES) {
+        const m = line.substring(pos).match(new RegExp("^(?:" + re.source + ")"));
+        if (m && m[0].length > 0) {
+          for (const ch of m[0]) chars.push({ char: ch, color });
+          pos += m[0].length;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        chars.push({ char: line[pos], color: TERM.default });
+        pos++;
+      }
+    }
+  }
+  return chars;
+}
+
 function countLinesUpTo(tokens, count) {
   let lines = 0;
   for (let i = 0; i < count && i < tokens.length; i++) {
@@ -167,14 +256,15 @@ class Renderer {
   get maxVisibleLines() {
     return Math.floor((this.codeAreaH - CONFIG.code.paddingY * 2) / CONFIG.code.lineHeight);
   }
-  get maxCols() {
-    const codeWidth = this.winW - CONFIG.code.paddingX * 2 - CONFIG.code.gutterWidth;
+  getMaxCols(terminal = false) {
+    const gutter = terminal ? 0 : CONFIG.code.gutterWidth;
+    const codeWidth = this.winW - CONFIG.code.paddingX * 2 - gutter;
     return Math.max(1, Math.floor(codeWidth / this.charWidth));
   }
 
   // Count visual lines (accounting for wrapping) up to charCount
-  countVisualLines(tokens, charCount) {
-    const max = this.maxCols;
+  countVisualLines(tokens, charCount, terminal = false) {
+    const max = this.getMaxCols(terminal);
     let col = 0, vLine = 0;
     for (let i = 0; i < charCount && i < tokens.length; i++) {
       const ch = tokens[i].char;
@@ -192,6 +282,7 @@ class Renderer {
 
   render(scene, charCount, opacity, scrollY) {
     const ctx = this.ctx;
+    this._terminal = scene.mode === "terminal";
     ctx.clearRect(0, 0, CONFIG.canvas.width, CONFIG.canvas.height);
 
     this.drawBackground();
@@ -216,9 +307,13 @@ class Renderer {
       ctx.closePath();
       ctx.clip();
 
-      this.drawLineNumbers(scene, charCount, scrollY);
+      if (!this._terminal) {
+        this.drawLineNumbers(scene, charCount, scrollY);
+      }
       this.drawCode(scene, charCount, scrollY);
-      this.drawCursor(scene, charCount, scrollY);
+      if (!this._terminal) {
+        this.drawCursor(scene, charCount, scrollY);
+      }
 
       ctx.restore();
     }
@@ -242,7 +337,7 @@ class Renderer {
     ctx.shadowColor = "rgba(0,0,0,0.6)";
     ctx.shadowBlur = 40;
     ctx.shadowOffsetY = 10;
-    ctx.fillStyle = CONFIG.window.bg;
+    ctx.fillStyle = this._terminal ? "#1a1a1a" : CONFIG.window.bg;
     this.roundRect(this.winX, this.winY, this.winW, this.winH, CONFIG.window.borderRadius);
     ctx.fill();
     ctx.restore();
@@ -255,7 +350,7 @@ class Renderer {
     const r = CONFIG.window.borderRadius;
 
     // Title bar bg
-    ctx.fillStyle = CONFIG.window.titleBarBg;
+    ctx.fillStyle = this._terminal ? "#252525" : CONFIG.window.titleBarBg;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -300,7 +395,7 @@ class Renderer {
     const ctx = this.ctx;
     const startX = this.winX + CONFIG.code.paddingX;
     const baseY = this.codeAreaY + CONFIG.code.paddingY - scrollY;
-    const maxC = this.maxCols;
+    const maxC = this.getMaxCols(false);
     const tokens = scene.tokens;
     const count = Math.min(charCount, tokens.length);
 
@@ -338,9 +433,10 @@ class Renderer {
   drawCode(scene, charCount, scrollY) {
     if (charCount <= 0) return;
     const ctx = this.ctx;
-    const codeX = this.winX + CONFIG.code.paddingX + CONFIG.code.gutterWidth;
+    const gutter = this._terminal ? 0 : CONFIG.code.gutterWidth;
+    const codeX = this.winX + CONFIG.code.paddingX + gutter;
     const baseY = this.codeAreaY + CONFIG.code.paddingY - scrollY;
-    const maxC = this.maxCols;
+    const maxC = this.getMaxCols(this._terminal);
 
     ctx.font = `${CONFIG.code.fontSize}px ${CONFIG.code.fontFamily}`;
     ctx.textBaseline = "top";
@@ -372,9 +468,10 @@ class Renderer {
   drawCursor(scene, charCount, scrollY) {
     if (!scene.tokens || scene.tokens.length === 0) return;
     const ctx = this.ctx;
-    const codeX = this.winX + CONFIG.code.paddingX + CONFIG.code.gutterWidth;
+    const gutter = this._terminal ? 0 : CONFIG.code.gutterWidth;
+    const codeX = this.winX + CONFIG.code.paddingX + gutter;
     const baseY = this.codeAreaY + CONFIG.code.paddingY - scrollY;
-    const maxC = this.maxCols;
+    const maxC = this.getMaxCols(this._terminal);
 
     let col = 0, vLine = 0;
     for (let i = 0; i < charCount && i < scene.tokens.length; i++) {
@@ -460,9 +557,10 @@ class Animator {
       await this.holdFrame(scenes[i], 0, CONFIG.transition.pauseMs);
       if (this.cancelled) break;
 
-      // Type
+      // Type or print
       const sceneDone = doneChars;
-      await this.typeScene(scenes[i], (p) => {
+      const animateFn = scenes[i].mode === "terminal" ? "printScene" : "typeScene";
+      await this[animateFn](scenes[i], (p) => {
         onProgress?.((sceneDone + p * scenes[i].tokens.length) / totalChars);
       });
       doneChars += scenes[i].tokens.length;
@@ -557,7 +655,7 @@ class Animator {
         }
 
         // Smooth scroll (use visual lines to account for wrapping)
-        const curLine = this.renderer.countVisualLines(scene.tokens, charIdx);
+        const curLine = this.renderer.countVisualLines(scene.tokens, charIdx, scene.mode === "terminal");
         const targetScroll = Math.max(0, (curLine - maxVis + 4) * CONFIG.code.lineHeight);
         this.scrollY += (targetScroll - this.scrollY) * 0.12;
 
@@ -565,6 +663,59 @@ class Animator {
         onProgress?.(charIdx / total);
 
         if (charIdx < total) requestAnimationFrame(tick); else res();
+      };
+      requestAnimationFrame(tick);
+    });
+  }
+
+  // Terminal mode: print whole lines at a fixed interval
+  async printScene(scene, onProgress) {
+    const tokens = scene.tokens;
+    const total = tokens.length;
+    if (total === 0) return;
+
+    // Precompute line-end positions (index after each \n or end of tokens)
+    const lineEnds = [];
+    for (let i = 0; i < total; i++) {
+      if (tokens[i].char === "\n") lineEnds.push(i + 1);
+    }
+    if (lineEnds.length === 0 || lineEnds[lineEnds.length - 1] < total) {
+      lineEnds.push(total);
+    }
+
+    const maxVis = this.renderer.maxVisibleLines;
+    const lineDelay = 1000 / (CONFIG.typing.cps / 8); // lines per second derived from cps
+
+    let lineIdx = 0;
+    let lastTime = performance.now();
+    let accum = 0;
+
+    return new Promise((res) => {
+      const tick = () => {
+        if (this.cancelled) return res();
+
+        const now = performance.now();
+        const dt = now - lastTime;
+        lastTime = now;
+        accum += dt;
+
+        // Advance whole lines
+        while (accum >= lineDelay && lineIdx < lineEnds.length) {
+          accum -= lineDelay;
+          lineIdx++;
+        }
+
+        const charIdx = lineIdx >= lineEnds.length ? total : lineEnds[lineIdx - 1] || 0;
+
+        // Smooth scroll
+        const curLine = this.renderer.countVisualLines(tokens, charIdx, true);
+        const targetScroll = Math.max(0, (curLine - maxVis + 4) * CONFIG.code.lineHeight);
+        this.scrollY += (targetScroll - this.scrollY) * 0.15;
+
+        this.renderer.render(scene, charIdx, 1, this.scrollY);
+        onProgress?.(charIdx / total);
+
+        if (lineIdx < lineEnds.length) requestAnimationFrame(tick); else res();
       };
       requestAnimationFrame(tick);
     });
@@ -627,21 +778,31 @@ class App {
       resolution: document.getElementById("resolution-select"),
       progress: document.getElementById("progress-bar"),
       status: document.getElementById("status-text"),
+      snapshot: document.getElementById("snapshot-btn"),
+      modeToggle: document.querySelector(".mode-toggle"),
+      langWrap: document.getElementById("lang-wrap"),
     };
 
     this.renderer = new Renderer(this.$.canvas);
     this.animator = new Animator(this.renderer);
     this.recorder = new Recorder(this.$.canvas);
 
-    // Default scene with sample code
-    this.addScene(SAMPLE_CODE, "typescript", "extractGifFrames.ts");
+    // Restore from localStorage or start empty
+    const saved = this.loadState();
+    if (saved && saved.length > 0) {
+      for (const s of saved) this.addScene(s.code, s.language, s.title, s.mode);
+    } else {
+      this.addScene();
+    }
+    this.sceneIdx = 0;
+    this.updateUI();
     this.bindEvents();
     this.renderPreview();
   }
 
-  addScene(code = "", lang = "typescript", title = "untitled.ts") {
-    const tokens = code ? tokenizeCode(code, lang) : [];
-    this.scenes.push({ code, language: lang, title, tokens });
+  addScene(code = "", lang = "typescript", title = "untitled.ts", mode = "code") {
+    const tokens = code ? (mode === "terminal" ? tokenizeTerminal(code) : tokenizeCode(code, lang)) : [];
+    this.scenes.push({ code, language: lang, title, tokens, mode });
     this.sceneIdx = this.scenes.length - 1;
     this.updateUI();
   }
@@ -663,7 +824,9 @@ class App {
     s.code = this.$.code.value;
     s.language = this.$.lang.value;
     s.title = this.$.title.value;
-    s.tokens = s.code ? tokenizeCode(s.code, s.language) : [];
+    s.tokens = s.code
+      ? (s.mode === "terminal" ? tokenizeTerminal(s.code) : tokenizeCode(s.code, s.language))
+      : [];
     this.updateSceneList();
     this.renderPreview();
   }
@@ -673,6 +836,16 @@ class App {
     this.$.code.value = s.code;
     this.$.lang.value = s.language;
     this.$.title.value = s.title;
+
+    // Mode toggle
+    this.$.modeToggle.querySelectorAll(".mode-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.mode === (s.mode || "code"));
+    });
+    this.$.langWrap.classList.toggle("hidden", s.mode === "terminal");
+    this.$.code.placeholder = s.mode === "terminal"
+      ? "Paste terminal output here..."
+      : "Paste your code here...";
+
     this.updateSceneList();
     this.renderPreview();
   }
@@ -695,6 +868,15 @@ class App {
     this.renderer.render(s, s.tokens.length, 1, 0);
   }
 
+  exportFrame() {
+    this.applySettings();
+    this.renderPreview();
+    const a = document.createElement("a");
+    a.href = this.$.canvas.toDataURL("image/png");
+    a.download = (this.scenes[this.sceneIdx].title || "frame") + ".png";
+    a.click();
+  }
+
   applySettings() {
     CONFIG.typing.cps = parseInt(this.$.speed.value) || 40;
     CONFIG.code.fontSize = parseInt(this.$.fontSize.value) || 18;
@@ -712,6 +894,7 @@ class App {
       return;
     }
     this.applySettings();
+    this.saveState();
     this.$.play.textContent = "Stop";
     this.$.status.textContent = "Playing...";
     await this.animator.playAll(this.scenes, (p) => {
@@ -724,9 +907,23 @@ class App {
   }
 
   async exportVideo() {
+    // Cancel if already exporting
+    if (this._exporting) {
+      this._exporting = false;
+      this.animator.cancel();
+      if (this._convertAbort) this._convertAbort.abort();
+      try { this.recorder.mr?.stop(); } catch {}
+      this.resetExportUI("Export cancelled");
+      return;
+    }
+
     if (this.animator.playing) return;
+    this._exporting = true;
+    this._convertAbort = null;
     this.applySettings();
-    this.$.export.disabled = true;
+    this.saveState();
+    this.$.export.textContent = "Cancel Export";
+    this.$.export.classList.add("btn-danger");
     this.$.play.disabled = true;
     this.$.status.textContent = "Recording...";
 
@@ -735,9 +932,14 @@ class App {
       this.$.progress.style.width = `${p * 100}%`;
     });
 
+    if (!this._exporting) return;
+
     // Hold last frame
     await new Promise((r) => setTimeout(r, 1500));
+    if (!this._exporting) return;
+
     const webm = await this.recorder.stop();
+    if (!this._exporting) return;
 
     // Try server-side MP4 conversion
     this.$.status.textContent = "Converting to MP4...";
@@ -745,16 +947,25 @@ class App {
     let name = "code-animation.webm";
 
     try {
+      this._convertAbort = new AbortController();
       const fd = new FormData();
       fd.append("video", webm, "video.webm");
-      const resp = await fetch("/api/convert", { method: "POST", body: fd });
+      const resp = await fetch("/api/convert", {
+        method: "POST",
+        body: fd,
+        signal: this._convertAbort.signal,
+      });
+      if (!this._exporting) return;
       if (resp.ok) {
         blob = await resp.blob();
         name = "code-animation.mp4";
       }
-    } catch {
+    } catch (e) {
+      if (e.name === "AbortError") return;
       // ffmpeg not available, keep WebM
     }
+
+    if (!this._exporting) return;
 
     // Download
     const url = URL.createObjectURL(blob);
@@ -764,17 +975,52 @@ class App {
     a.click();
     URL.revokeObjectURL(url);
 
+    this.resetExportUI(`Exported ${name}`);
+  }
+
+  resetExportUI(statusMsg) {
+    this._exporting = false;
+    this._convertAbort = null;
+    this.$.export.textContent = "Export Video";
+    this.$.export.classList.remove("btn-danger");
     this.$.export.disabled = false;
     this.$.play.disabled = false;
-    this.$.status.textContent = `Exported ${name}`;
+    this.$.status.textContent = statusMsg;
     this.$.progress.style.width = "0%";
     this.renderPreview();
+  }
+
+  saveState() {
+    const data = this.scenes.map(({ code, language, title, mode }) => ({ code, language, title, mode }));
+    try { localStorage.setItem("code-animator-scenes", JSON.stringify(data)); } catch {}
+  }
+
+  loadState() {
+    try {
+      const raw = localStorage.getItem("code-animator-scenes");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
   }
 
   bindEvents() {
     this.$.code.addEventListener("input", () => this.syncScene());
     this.$.lang.addEventListener("change", () => this.syncScene());
     this.$.title.addEventListener("input", () => this.syncScene());
+
+    // Clean pasted terminal content in the textarea
+    this.$.code.addEventListener("paste", (e) => {
+      const s = this.scenes[this.sceneIdx];
+      if (s.mode !== "terminal") return;
+      e.preventDefault();
+      const raw = e.clipboardData.getData("text");
+      const clean = cleanTerminalText(raw);
+      const ta = e.target;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      ta.value = ta.value.substring(0, start) + clean + ta.value.substring(end);
+      ta.selectionStart = ta.selectionEnd = start + clean.length;
+      this.syncScene();
+    });
 
     // Tab support in textarea
     this.$.code.addEventListener("keydown", (e) => {
@@ -796,9 +1042,23 @@ class App {
       if (rm) this.removeScene(parseInt(rm.dataset.i));
     });
 
+    // Mode toggle
+    this.$.modeToggle.addEventListener("click", (e) => {
+      const btn = e.target.closest(".mode-btn");
+      if (!btn) return;
+      const s = this.scenes[this.sceneIdx];
+      s.mode = btn.dataset.mode;
+      // Re-tokenize with new mode
+      s.tokens = s.code
+        ? (s.mode === "terminal" ? tokenizeTerminal(s.code) : tokenizeCode(s.code, s.language))
+        : [];
+      this.updateUI();
+    });
+
     this.$.addScene.addEventListener("click", () => this.addScene());
     this.$.play.addEventListener("click", () => this.play());
     this.$.export.addEventListener("click", () => this.exportVideo());
+    this.$.snapshot.addEventListener("click", () => this.exportFrame());
 
     this.$.fontSize.addEventListener("change", () => {
       this.applySettings();
@@ -811,31 +1071,6 @@ class App {
     });
   }
 }
-
-// ---------- Sample Code ----------
-
-const SAMPLE_CODE = `async function extractGifFrames(imageBuffer: Buffer): Promise<Buffer[]> {
-  const metadata = await sharp(imageBuffer).metadata();
-  const totalFrames = metadata.pages ?? 1;
-
-  if (totalFrames <= 1) return [imageBuffer];
-
-  const frameIndices: number[] = [];
-  for (let i = 0; i < Math.min(MAX_GIF_FRAMES, totalFrames); i++) {
-    frameIndices.push(
-      Math.round(i * (totalFrames - 1) / (Math.min(MAX_GIF_FRAMES, totalFrames) - 1))
-    );
-  }
-
-  const frames: Buffer[] = [];
-  for (const page of frameIndices) {
-    const frame = await sharp(imageBuffer, { page })
-      .png()
-      .toBuffer();
-    frames.push(frame);
-  }
-  return frames;
-}`;
 
 // ---------- Boot ----------
 

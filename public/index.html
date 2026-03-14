@@ -39,27 +39,35 @@
       </div>
 
       <div class="sidebar-section">
+        <label class="field-label">Mode</label>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="code">Code</button>
+          <button class="mode-btn" data-mode="terminal">Terminal</button>
+        </div>
+
         <label class="field-label" for="title-input">Title</label>
         <input type="text" id="title-input" class="field-input" placeholder="filename.ts" />
 
-        <label class="field-label" for="lang-select">Language</label>
-        <select id="lang-select" class="field-input">
-          <option value="typescript">TypeScript</option>
-          <option value="javascript">JavaScript</option>
-          <option value="python">Python</option>
-          <option value="go">Go</option>
-          <option value="rust">Rust</option>
-          <option value="java">Java</option>
-          <option value="c">C</option>
-          <option value="cpp">C++</option>
-          <option value="ruby">Ruby</option>
-          <option value="swift">Swift</option>
-          <option value="kotlin">Kotlin</option>
-          <option value="bash">Bash</option>
-          <option value="json">JSON</option>
-          <option value="css">CSS</option>
-          <option value="xml">HTML/XML</option>
-        </select>
+        <div id="lang-wrap">
+          <label class="field-label" for="lang-select">Language</label>
+          <select id="lang-select" class="field-input">
+            <option value="typescript">TypeScript</option>
+            <option value="javascript">JavaScript</option>
+            <option value="python">Python</option>
+            <option value="go">Go</option>
+            <option value="rust">Rust</option>
+            <option value="java">Java</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
+            <option value="ruby">Ruby</option>
+            <option value="swift">Swift</option>
+            <option value="kotlin">Kotlin</option>
+            <option value="bash">Bash</option>
+            <option value="json">JSON</option>
+            <option value="css">CSS</option>
+            <option value="xml">HTML/XML</option>
+          </select>
+        </div>
       </div>
 
       <div class="sidebar-section sidebar-section-grow">
@@ -76,6 +84,7 @@
       <div id="controls">
         <div class="controls-row">
           <button id="play-btn" class="btn btn-primary">Preview</button>
+          <button id="snapshot-btn" class="btn btn-secondary">Export Frame</button>
           <button id="export-btn" class="btn btn-accent">Export Video</button>
           <span id="status-text">Ready</span>
         </div>

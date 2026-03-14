@@ -1,5 +1,7 @@
+const port = parseInt(Bun.argv[2] || process.env.PORT || "3000", 10);
+
 const server = Bun.serve({
-  port: 3000,
+  port,
   async fetch(req) {
     const url = new URL(req.url);
 
