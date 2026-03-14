@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Animator</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/typescript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/go.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/rust.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/xml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/java.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/c.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/cpp.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/ruby.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/swift.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/kotlin.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <h1>Code Animator</h1>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-label">Scenes</div>
+        <div id="scene-list"></div>
+        <button id="add-scene" class="btn btn-ghost">+ Add Scene</button>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="field-label" for="title-input">Title</label>
+        <input type="text" id="title-input" class="field-input" placeholder="filename.ts" />
+
+        <label class="field-label" for="lang-select">Language</label>
+        <select id="lang-select" class="field-input">
+          <option value="typescript">TypeScript</option>
+          <option value="javascript">JavaScript</option>
+          <option value="python">Python</option>
+          <option value="go">Go</option>
+          <option value="rust">Rust</option>
+          <option value="java">Java</option>
+          <option value="c">C</option>
+          <option value="cpp">C++</option>
+          <option value="ruby">Ruby</option>
+          <option value="swift">Swift</option>
+          <option value="kotlin">Kotlin</option>
+          <option value="bash">Bash</option>
+          <option value="json">JSON</option>
+          <option value="css">CSS</option>
+          <option value="xml">HTML/XML</option>
+        </select>
+      </div>
+
+      <div class="sidebar-section sidebar-section-grow">
+        <label class="field-label" for="code-input">Code</label>
+        <textarea id="code-input" spellcheck="false" placeholder="Paste your code here..."></textarea>
+      </div>
+    </aside>
+
+    <main id="main">
+      <div id="canvas-wrap">
+        <canvas id="preview-canvas"></canvas>
+      </div>
+
+      <div id="controls">
+        <div class="controls-row">
+          <button id="play-btn" class="btn btn-primary">Preview</button>
+          <button id="export-btn" class="btn btn-accent">Export Video</button>
+          <span id="status-text">Ready</span>
+        </div>
+        <div id="progress-wrap">
+          <div id="progress-bar"></div>
+        </div>
+        <div class="controls-row controls-settings">
+          <label>
+            Speed
+            <input type="number" id="speed-input" class="field-input field-sm" value="40" min="5" max="200" step="5" />
+            <span class="unit">cps</span>
+          </label>
+          <label>
+            Font
+            <input type="number" id="font-size-input" class="field-input field-sm" value="18" min="10" max="36" step="1" />
+            <span class="unit">px</span>
+          </label>
+          <label>
+            Resolution
+            <select id="resolution-select" class="field-input field-sm">
+              <option value="1920x1080" selected>1080p</option>
+              <option value="1280x720">720p</option>
+              <option value="3840x2160">4K</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

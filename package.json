@@ -1,0 +1,8 @@
+{
+  "name": "code-animator",
+  "type": "module",
+  "scripts": {
+    "start": "bun run server.ts",
+    "dev": "bun --watch server.ts"
+  }
+}
